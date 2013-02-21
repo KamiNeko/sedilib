@@ -22,67 +22,78 @@
 * <http://www.gnu.org/licenses/>.
 */
 
+require_once('sequence_block.php');
 require_once('sequence_class.php');
 require_once('sequence_message.php');
 
 /** Represents the sequence diagramm
 */
 class SequenceDiagram {
-    private $_classes = array();
-    private $_messages = array();
+    /** Objects in the diagram
+    */
+    private $_objects = array();
     
-    function __construct() {
+    /** Blocks in the diagram
+    */
+    private $_blocks = array();
     
+    /** Title of the diagram
+    */
+    private $_title;
+    
+    /** Constructor
+    */
+    public function __construct() {
+	$_title = '';
     }
     
-    function addClass($class) {
-	    $this->_classes[] = $class;
+    /** Add an object to the diagram
+    */
+    public function addObject($object) {
+	$this->_objects[] = $object;
     }
     
-    function addMessage($message) {
-	    $this->_messages[] = $message;
-    }
-    
-    function findClassByNameOrAlias($name) {
-	for ($i=0; $i < count($this->_classes); $i++) {
-	    if ($this->_classes[$i]->name() == $name) {
-		return $this->_classes[$i];
+    /** Searches all objects in this diagram for classes with the given name or alias
+    */
+    public function findClassByNameOrAlias($name) {
+	for ($i=0; $i < count($this->_objects); $i++) {
+	    // Only search for classes
+	    if (get_class($this->_objects[$i]) != 'SequenceClass') {
+		continue;
 	    }
 	    
-	    if ($this->_classes[$i]->alias() == $name) {
-		return $this->_classes[$i];
+	    if ($this->_objects[$i]->name() == $name) {
+		return $this->_objects[$i];
+	    }
+	    
+	    if ($this->_objects[$i]->alias() == $name) {
+		return $this->_objects[$i];
 	    }
 	}
 	
 	return NULL;
     }
     
-    function existsClassByName($className) {
-	for ($i=0; $i < count($this->_classes); $i++) {
-	    if ($this->_classes[$i]->name() == $className) {
-		return true;
-	    }
-	}
-	
-	return false;
+    /** Returns all objects in this diagram
+    */
+    public function objects() {
+	return $this->_objects;
     }
     
-    function existsClassByAlias($aliasName) {
-	for ($i=0; $i < count($this->_classes); $i++) {
-	    if ($this->_classes[$i]->alias() == $aliasName) {
-		return true;
-	    }
-	}
-	
-	return false;
+    public function addBlock($block) {
+	$this->_blocks[] = $block;
     }
     
-    function classes() {
-	return $this->_classes;
+    public function blocks() {
+	return $this->_blocks;
     }
     
-    function messages() {
-	return $this->_messages;
+    public function title() {
+	return $this->_title;
+    }
+    
+    public function setTitle($title) {
+	$this->_title = $title;
     }
 }
 

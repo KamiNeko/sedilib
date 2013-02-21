@@ -23,10 +23,13 @@
 */
 
 require_once('sequence_activity.php');
+require_once('sequence_block.php');
+require_once('sequence_block_action.php');
 require_once('sequence_class.php');
 require_once('sequence_diagram.php');
 require_once('sequence_draw.php');
 require_once('sequence_message.php');
+require_once('sequence_note.php');
 
 /** Provides User Interface for building a sequence diagram and drawing
 */
@@ -58,10 +61,8 @@ class SequenceDiagramBuilder {
 	}
 	
 	// Search if ClassName and AliasName are unique
-	if ($this->_sequenceDiagram->existsClassByName($className) != NULL &&
-	    $this->_sequenceDiagram->existsClassByName($aliasName) != NULL &&
-	    $this->_sequenceDiagram->existsClassByAlias($aliasName) != NULL &&
-	    $this->_sequenceDiagram->existsClassByAlias($className) != NULL) {
+	if ($this->_sequenceDiagram->findClassByNameOrAlias($className) != NULL &&
+	    $this->_sequenceDiagram->findClassByNameOrAlias($aliasName) != NULL) {
 	    return false;
 	}
 	
@@ -74,30 +75,62 @@ class SequenceDiagramBuilder {
 	$this->_draw->classMeasures($className, $width, $height);
 	$class->setMeasures($width, $height);
 	
-	$this->_sequenceDiagram->addClass($class);
+	$this->_sequenceDiagram->addObject($class);
 	
 	return true;
+    }
+    
+    public function setTitle($title) {
+	$this->_sequenceDiagram->setTitle($title);
+    }
+    
+    public function addNote($text) {
+	// Add note
+	$note = new SequenceNote($text);
+	
+	$this->_sequenceDiagram->addObject($note);
     }
     
     /** Start a new block
     * @param title The title of the block
     * @param text Inner text of the block
     */
-    public function addBlock($title, $text) {
-    
+    public function addBlock($title, $text, $empty = false) {
+	if ($empty) {
+	    $action = new SequenceBlockAction('create_empty');
+	}
+	else {
+	    $action = new SequenceBlockAction('create');
+	}
+	
+	$action->setTitle($title);
+	$action->setText($text);
+	
+	$this->_sequenceDiagram->addObject($action);
+	
+	return true;
     }
     
     /** Splits the current block, e.g., for if/else conditions
     * @param text Inner text of the block
     */
     public function splitBlock($text) {
-    
+	$action = new SequenceBlockAction('split');
+	$action->setText($text);
+	
+	$this->_sequenceDiagram->addObject($action);
+	
+	return true;
     }
     
     /** Closes current block
     */
     public function endBlock() {
-    
+	$action = new SequenceBlockAction('close');
+	
+	$this->_sequenceDiagram->addObject($action);
+	
+	return true;
     }
     
     /** Add a message to the sequence diagram
@@ -138,7 +171,7 @@ class SequenceDiagramBuilder {
 	$message = new SequenceMessage($origin, $destination, $message_text, $dashed, $fill_arrow_head);
 	$message->setVisible(!$invisible);
 	
-	$this->_sequenceDiagram->addMessage($message);
+	$this->_sequenceDiagram->addObject($message);
 	
 	// Start activity at destination
 	if ($activity_mode == 1) {
@@ -152,7 +185,7 @@ class SequenceDiagramBuilder {
 	if ($activity_mode == 2) {	    
 	    $class_activities = $origin_class->activities();
 	    $count = count($class_activities);
-	    $last_activity = NULL; //$class_activities[$count - 1];
+	    $last_activity = NULL; 
 	    
 	    // Search backwards last not closed activity
 	    for ($i = $count - 1; $i >= 0; $i--) {
@@ -183,36 +216,224 @@ class SequenceDiagramBuilder {
 	
 	return true;
     }
-        
-    private function computePositions() {	    
-	$x = 25;
-	$y = 50;
-	
-	$this->_width = $x;
-		
-	// 1. Compute x-coordinates for all classes
-	foreach ($this->_sequenceDiagram->classes() as $id => $class) {
-	    $x += $class->width() / 2;
     
+    /** Returns true if object is a class
+    */
+    private function isClass($object) {
+	return get_class($object) == 'SequenceClass';
+    }
+    
+    /** Returns true if object is a message
+    */
+    private function isMessage($object) {
+	return get_class($object) == 'SequenceMessage';
+    }
+    
+    private function isNote($object) {
+	return get_class($object) == 'SequenceNote';
+    }
+    
+    /** Returns true if object is a block action
+    */
+    private function isBlockAction($object) {
+	return get_class($object) == 'SequenceBlockAction';
+    }
+    
+    private function computeClassesInitialX(&$x, &$y) {
+	foreach ($this->_sequenceDiagram->objects() as $class) {
+	    // Only search for classes
+	    if (!$this->isClass($class)) {
+		continue;
+	    }
+	    
+	    $x += $class->width() / 2;
 	    $class->setX($x);
 	    $class->setY($y);
 	    $x += $class->width() / 2 + $this->_classMinDistance;	
 	}
+    }
+    
+    private function computeBlocks() {
+	$max_width = -1;
 	
-	$y = 90;
-	$message_space = 50;
-	$width_increment = 30;
+	foreach ($this->_sequenceDiagram->blocks() as $block) {
+	    $block->setWidth($this->_width, $this->_draw);
+	    if ($block->width() > $max_width) {
+		$max_width = $block->width();
+	    }
+	}
 	
-	$this->_height = $y;
+	$this->resizeWidth($max_width + 20);
 	
+	foreach ($this->_sequenceDiagram->blocks() as $block) {
+	    $block->adjustX($this->_width / 2);
+	}
+    }
+    
+    private function computeBlockAction($blockAction, &$x, &$y, &$current_block, &$current_sub_block) {
+	switch ($blockAction->mode()) {
+	    case 'create_empty':
+	    case 'create':
+		$y += 10;
+		$this->_height += 10;
+		
+		// Create new block and sub block
+		$block = new SequenceBlock();
+		$subBlock = new SequenceSubBlock();
+		
+		if ($blockAction->mode() == 'create_empty') {
+		    $block->setEmptyfill(true);
+		}
+		
+		// Assign tree relation
+		$block->setParentPtr($current_block);
+		$block->addInnerSubBlock($subBlock);
+		
+		$subBlock->setParentPtr($block);
+		
+		if ($current_sub_block != NULL) {
+		    $current_sub_block->addInnerBlock($block);
+		}
+		else {
+		    // We are on first layer of hierarchy so add directly to sequence diagram
+		    $this->_sequenceDiagram->addBlock($block);
+		}
+		
+		// Reassign current block and sub block
+		$current_block = $block;
+		$current_sub_block = $subBlock;
+		
+		// Set attributes
+		$block->setName($blockAction->title());
+		$subBlock->setText($blockAction->text());
+		
+		$subBlock->setY1($y);
+		
+		// Add text height
+		$text_height = $this->_draw->minBlockHeight($current_block->name(), $current_sub_block->text());
+		$y += $text_height;
+		$this->_height += $text_height;
+		
+		break;
+		
+	    case 'split':
+		$y += 10;
+		$this->_height += 10;
+	
+		// Close current sub block
+		$current_sub_block->setY2($y);
+		
+		// Create new sub block
+		$subBlock = new SequenceSubBlock();
+		
+		// Assign to current block
+		$current_block->addInnerSubBlock($subBlock);
+		$subBlock->setParentPtr($current_block);
+		
+		// Reassign
+		$current_sub_block = $subBlock;
+		
+		// Set attributes
+		$subBlock->setText($blockAction->text());
+		
+		$subBlock->setY1($y);
+		
+		// Add text height
+		$text_height = $this->_draw->minBlockHeight($current_block->name(), $current_sub_block->text());
+		$y += $text_height;
+		$this->_height += $text_height;
+		
+		break;
+		
+	    case 'close':
+		$y += 10;
+		$this->_height += 10;
+		// Close current sub block
+		$current_sub_block->setY2($y);
+		
+		// Search last created sub block in parent block
+		if ($current_block != NULL && $current_block->parentPtr() != NULL) {
+		    $sub_blocks = $current_block->parentPtr()->innerSubBlocks();
+		    $max_count = count($sub_blocks);
+		    $last_created_sub_block = $sub_blocks[$max_count - 1];
+		    
+		    // Reassign
+		    $current_block = $last_created_sub_block->parentPtr();
+		    $current_sub_block = $last_created_sub_block;
+		}
+		// Else we are on top of the hierarchy
+		else {
+		    $current_block = NULL;
+		    $current_sub_block = NULL;
+		}
+		
+		break;
+	}
+	
+	// Increment y
+	$y += 20;
+	$this->_height += 20;
+    }
+    
+    private function computeNoteY($note, &$x, &$y) {
+	$height = $this->_draw->noteHeight($note->text());
+	
+	$note->setY($y);
+	
+	$y += $height + 10;
+    }
+    
+    private function computeNoteX() {
+	$x = $this->_width + 20;
+	
+	$max = -1;
+	
+	foreach ($this->_sequenceDiagram->objects() as $note) {
+	    // Note
+	    if (!$this->isNote($note)) {
+		continue;
+	    }
+	    
+	    $note->setX($x);
+	    
+	    $current_x2 = $x + $this->_draw->noteWidth($note->text());
+	    
+	    if ($current_x2 > $max) {
+		$max = $current_x2;
+	    }
+	}
+	
+	$this->_width = $max + 10;
+    }
+    
+    private function computeMessagesY(&$x, &$y) {
 	$last_message_was_invisible = false;
 	
-	// 2. Compute y-coordinates for all messages
-	foreach ($this->_sequenceDiagram->messages() as $id => $message) {
+	$current_block = NULL;
+	$current_sub_block = NULL;
+	
+	foreach ($this->_sequenceDiagram->objects() as $message) {
+	    // Block action
+	    if ($this->isBlockAction($message)) {
+		$this->computeBlockAction($message, $x, $y, $current_block, $current_sub_block);
+		continue;
+	    }
+	    
+	    // Note
+	    if ($this->isNote($message)) {
+		$this->computeNoteY($message, $x, $y);
+		continue;
+	    }
+	    
+	    // Only search for messages
+	    if (!$this->isMessage($message)) {
+		continue;
+	    }
+	    
 	    // Check if not self message
 	    $self_message = ($message->origin() == $message->destination());
 	    
-	    // If invisible message, subtract a little bit of heigh
+	    // If invisible message, subtract a little bit of height
 	    if (!$message->visible() && !$last_message_was_invisible) {
 		  // Adjust height
 		  $y -= 20;
@@ -252,7 +473,12 @@ class SequenceDiagramBuilder {
 		$right_neighbour = NULL;
 		$origin_found = false;
 		
-		foreach ($this->_sequenceDiagram->classes() as $class) {
+		foreach ($this->_sequenceDiagram->objects() as $class) {
+		    // Only search for classes
+		    if (!$this->isClass($class)) {
+			continue;
+		    }
+		    
 		    if ($origin_found) {
 			$right_neighbour = $class;
 			break;
@@ -276,7 +502,7 @@ class SequenceDiagramBuilder {
 	    }
 	    
 	    if ($new_distance > $current_distance) {
-		    $extend = true;
+		$extend = true;
 	    }
 	    
 	    $difference = $new_distance - $current_distance;
@@ -285,7 +511,12 @@ class SequenceDiagramBuilder {
 	    $skip = false;
 	    
 	    // Iterate through all classes right of destination and add difference
-	    foreach ($this->_sequenceDiagram->classes() as $id => $class) {
+	    foreach ($this->_sequenceDiagram->objects() as $id => $class) {
+		// Only search for classes
+		if (!$this->isClass($class)) {
+		    continue;
+		}
+	    
 		// While iterating through all classes here, we can use it to register message to class
 		if ($class->name() == $message->origin() ||
 		    $class->alias() == $message->origin()) {
@@ -343,7 +574,8 @@ class SequenceDiagramBuilder {
 		    
 		    // If selfmessage, skip one class to get right neighbour instead
 		    if ($found && $message->visible() && $self_message && !$skip) { 		    
-			$skip = true; continue; 
+			$skip = true; 
+			continue; 
 		    }
 			    
 		    if ($found && $id != 0 && $message->visible()) {
@@ -372,18 +604,22 @@ class SequenceDiagramBuilder {
 		  $y += 20 ;
 		  $this->_height += 20;
 	      
-		  // Self message has different heigh then common message
+		  // Self message has different height then common message
 		  if ($self_message) {
 		      $y += $this->_draw->messageHeight($message->text(), true);
 		      $this->_height += $this->_draw->messageHeight($message->text(), true);
 		  }
 	    }
 	}
-	
-	$this->_height += 25;
-	
-	// Compute x-coordinates for messages
-	foreach ($this->_sequenceDiagram->classes() as $id => $class) {
+    }
+        
+    private function computeMessagesX(&$x, &$y) {    
+	foreach ($this->_sequenceDiagram->objects() as $id => $class) {
+	    // Only search for classes
+	    if (!$this->isClass($class)) {
+		continue;
+	    }
+	    
 	    $outgoingMessages = $class->outgoingMessages();
 	    $incommingMessages = $class->incommingMessages();
 				    
@@ -409,9 +645,15 @@ class SequenceDiagramBuilder {
 		}		
 	    }
 	}
-	
-	// Compute activities
-	foreach ($this->_sequenceDiagram->classes() as $id => $class) {
+    }
+        
+    private function computeActivites(&$x, &$y) {
+	foreach ($this->_sequenceDiagram->objects() as $id => $class) {
+	    // Only search for classes
+	    if (!$this->isClass($class)) {
+		continue;
+	    }
+	    
 	    $activities = $class->activities();
 	    
 	    // Iterate over activities for this class
@@ -422,7 +664,12 @@ class SequenceDiagramBuilder {
 		$end_found = false;
 		
 		// Iterate over all messages and find start and end, move all messages in beetween
-		foreach ($this->_sequenceDiagram->messages() as $id_message => $message) {
+		foreach ($this->_sequenceDiagram->objects() as $message) {
+		    // Only search for messages
+		    if (!$this->isMessage($message)) {
+			continue;
+		    }
+		    
 		    // Check if not self message
 		    $self_message = ($message->origin() == $message->destination());
 		
@@ -460,7 +707,8 @@ class SequenceDiagramBuilder {
 			    }
 			}
 			// Increment activity height in case we have no explicit end found
-			$activity->setY2($activity->y2() + 40);
+			//$activity->setY2($activity->y2() + 40);
+			$activity->setY2($message->y() + 10);
 		    }
 		    
 		    // Going in
@@ -483,7 +731,8 @@ class SequenceDiagramBuilder {
 			}
 			
 			// Increment activity height in case we have no explicit end found
-			$activity->setY2($activity->y2() + 40);
+			//$activity->setY2($activity->y2() + 40);
+			$activity->setY2($message->y() + 10);
 		    }
 		    
 		    // Search end message
@@ -501,7 +750,7 @@ class SequenceDiagramBuilder {
 		
 		// If no explicit end found, end activity manual
 		if (!$end_found) {
-		    $activity->setY2($activity->y2() - 40);
+		   // $activity->setY2($activity->y2() - 20);
 		}
 		
 		// Check if activity does not overlap with end of lifeline
@@ -510,16 +759,23 @@ class SequenceDiagramBuilder {
 		}
 	    }
 	}
-	
-	// Adjust image height
-	$this->_height += 50;
-	
-	// Get image width
+    }
+        
+    private function computeImageWidth() {
+	// Find most right class
+	$index = -1;
+	for ($i = count($this->_sequenceDiagram->objects()) - 1; $i >= 0; $i--) {
+	    // Only search for classes	    
+	    if (!$this->isClass($this->_sequenceDiagram->objects()[$i])) {
+		continue;
+	    }
+	    
+	    $index = $i;
+	    break;
+	}
 	
 	// Most right class
-	$classes = $this->_sequenceDiagram->classes();
-	$max = count($classes);
-	$max_class = $classes[$max - 1];
+	$max_class = $this->_sequenceDiagram->objects()[$index];
 	
 	$this->_width = $max_class->x() + $max_class->width() / 2 + 25;
 	
@@ -545,7 +801,80 @@ class SequenceDiagramBuilder {
 	    }
 	}
 	
+	// Title width
+	if ($this->_sequenceDiagram->title() != '') {
+	    $title_width = $this->_draw->diagramTitleWidth($this->_sequenceDiagram->title());
+	    
+	    if ($this->_width < $title_width + 10) {
+		$this->resizeWidth($title_width + 10);
+	    }
+	}
+	
 	// Most right note..etc: TODO: do not forget to adjust image width for new elements
+    }
+        
+    private function computePositions() {	    
+	$x = 25;
+	$y = 50;
+	
+	if ($this->_sequenceDiagram->title() != '') {
+	    $y += $this->_draw->diagramTitleHeight($this->_sequenceDiagram->title());
+	}
+	
+	$this->_width = $x;
+		
+	// Compute initial x-coordinates for all classes by order of insertion
+	$this->computeClassesInitialX($x, $y);
+	
+	$y += 30;
+	
+	$this->_height = $y;
+	
+	// Compute y-coordinates for all messages
+	$this->computeMessagesY($x, $y);
+	
+	// Adjust height
+	$this->_height += 25;
+	
+	// Compute x-coordinates for messages
+	$this->computeMessagesX($x, $y);
+	
+	// Compute activities
+	$this->computeActivites($x, $y);
+	
+	// Adjust image height approximately for destruction markers
+	$this->_height += 30;
+	
+	// Set image width
+	$this->computeImageWidth();
+		
+	// Compute blocks
+	$this->computeBlocks();
+	
+	// Compute notes
+	$this->computeNoteX();
+    }
+        
+    private function resizeWidth($new_width) {
+	$difference = $new_width - $this->_width;
+	
+	if ($difference <= 0) {
+	    return;
+	}
+	
+	foreach ($this->_sequenceDiagram->objects() as $object) {
+	    if ($this->isClass($object) || $this->isMessage($object)) {
+		$x1 = $object->x1();
+		$x2 = $object->x2();
+		$x = $object->x();
+		
+		$object->setX1($x1 + $difference / 2);
+		$object->setX2($x2 + $difference / 2);
+		$object->setX($x + $difference / 2);
+	    }
+	}
+	
+	$this->_width = $new_width;
     }
     
     public function draw() {
@@ -554,15 +883,22 @@ class SequenceDiagramBuilder {
 	
 	// Draw sequence diagram
 	$this->_draw->createImage($this->_width, $this->_height);
-
-	// Draw classes and lifelines
-	foreach ($this->_sequenceDiagram->classes() as $id => $class) {
-	    $class->draw($this->_draw);
+	
+	// Draw contained objects
+	foreach ($this->_sequenceDiagram->objects() as $object) {
+	    if ($this->isClass($object) || $this->isMessage($object) || $this->isNote($object)) {
+		$object->draw($this->_draw);
+	    }
 	}
-			
-	// Draw messages
-	foreach ($this->_sequenceDiagram->messages() as $id => $message) {
-	    $message->draw($this->_draw);
+	
+	// Draw blocks
+	foreach ($this->_sequenceDiagram->blocks() as $block) {
+	    $block->draw($this->_draw);
+	}
+	
+	// Draw title
+	if ($this->_sequenceDiagram->title() != '') {
+	    $this->_draw->drawDiagramTitle($this->_sequenceDiagram->title());
 	}
 	
 	$this->_draw->display();

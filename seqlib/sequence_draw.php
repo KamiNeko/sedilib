@@ -123,6 +123,24 @@ class Draw {
 	ImageDestroy($this->im); 
     }
     
+    public function noteWidth($text) {
+	return $this->textWidth($text, $this->class_font_size) + 2 * $this->class_width_offset;
+    }
+    
+    public function noteHeight($text) {
+	return $this->textHeight($text, $this->class_font_size) + 2 * $this->class_height_offset;
+    }
+    
+    public function drawNote($x, $y, $text) {
+	$width = $this->textWidth($text, $this->class_font_size) + 2 * $this->class_width_offset;
+	$height = $this->textHeight($text, $this->class_font_size) + 2 * $this->class_height_offset;
+	
+	ImageFilledRectangle($this->im, $x, $y, $x + $width, $y + $height, $this->fill_pen);
+	ImageRectangle($this->im, $x, $y, $x + $width, $y + $height, $this->border_pen);
+	
+	$this->drawTextMultiline($x + $this->class_width_offset, $y + $this->class_height_offset, $text, $this->class_font_size, $this->class_text_pen, false, false);
+    }
+    
     /** Returns measures of the class box
     */
     public function classMeasures($text, &$width, &$height) {
@@ -150,7 +168,7 @@ class Draw {
     
     /** Draws class box
     */
-    public function drawClassBox($x, $y, $width, $height, $text) {	    
+    public function drawClassBox($x, $y, $width, $height, $text) {   
 	$this->drawRectangleCentered($x, $y, $width, $height);
 	$this->drawTextMultiline($x, $y, $text, $this->class_font_size, $this->class_text_pen, true, true);
     }
@@ -219,6 +237,91 @@ class Draw {
 	ImageFilledRectangle($this->im, $x - $this->activity_width / 2, $y1, $x + $this->activity_width / 2, $y2, $this->activity_fill_pen);
 	ImageRectangle($this->im, $x - $this->activity_width / 2, $y1, $x + $this->activity_width / 2, $y2, $this->activity_border_pen);
     }
+    
+    public function drawDiagramTitle($title) {
+	$text_x = 7;
+	$text_y = 5;
+	
+	$x1 = 0;
+	$y1 = 0;
+		
+	$width = $this->textWidth($title, $this->message_font_size) + 7;
+	$height = $this->textHeight($title, $this->message_font_size) + 5;
+	
+	$offset = 8;
+	
+	$this->drawLine($x1, $y1, $text_x + $width, $y1);
+	$this->drawLine($x1, $y1, $x1, $text_y + $height);
+	
+	$this->drawLine($x1, $text_y + $height, $text_x + $width - $offset, $text_y + $height);
+	$this->drawLine($text_x + $width - $offset, $text_y + $height, $text_x + $width, $text_y + $height - $offset);	
+	$this->drawLine($text_x + $width, $text_y + $height - $offset, $text_x + $width, $y1);
+	
+	$this->drawTextMultiline($text_x, $text_y, $title, $this->message_font_size, $this->message_text_pen, false, false);
+    }
+    
+    public function diagramTitleHeight($title) {
+	$height = $this->textHeight($title, $this->message_font_size) + 5;
+	return $height;
+    }
+    
+    public function diagramTitleWidth($title) {
+	$width = $this->textWidth($title, $this->message_font_size) + 7;
+	return $width;
+    }
+    
+    public function drawBlock($x1, $y1, $title) {
+	$text_x = $x1 + 7;
+	$text_y = $y1 + 5;
+		
+	$width = $this->textWidth($title, $this->message_font_size) + 7;
+	$height = $this->textHeight($title, $this->message_font_size) + 5;
+	
+	// Background white
+	ImageFilledRectangle($this->im, $x1, $y1, $text_x + $width, $text_y + $height, $this->background_pen);	
+	
+	$offset = 8;
+	
+	$this->drawLine($x1, $y1, $text_x + $width, $y1);
+	$this->drawLine($x1, $y1, $x1, $text_y + $height);
+	
+	$this->drawLine($x1, $text_y + $height, $text_x + $width - $offset, $text_y + $height);
+	$this->drawLine($text_x + $width - $offset, $text_y + $height, $text_x + $width, $text_y + $height - $offset);	
+	$this->drawLine($text_x + $width, $text_y + $height - $offset, $text_x + $width, $y1);
+	
+	$this->drawTextMultiline($text_x, $text_y, $title, $this->message_font_size, $this->message_text_pen, false, false);
+    }
+    
+    /** Draws a sub block
+    */
+    public function drawSubBlock($x1, $y1, $x2, $y2, $text, $empty = false) {
+	if ($empty) {
+	    ImageFilledRectangle($this->im, $x1, $y1, $x2, $y2, $this->background_pen);
+	}
+	
+	$width = $this->textWidth($text, $this->message_font_size) ;
+	$height = $this->textHeight($text, $this->message_font_size);
+	
+	$text_x = $x2 - $width - 7;
+	$text_y = $y1 + 5;
+		
+	// Background white
+	ImageFilledRectangle($this->im, $text_x, $text_y, $text_x + $width, $text_y + $height, $this->background_pen);	
+	
+	ImageRectangle($this->im, $x1, $y1, $x2, $y2, $this->border_pen);
+	$this->drawTextMultiline($text_x, $text_y, $text, $this->message_font_size, $this->message_text_pen, false, false);
+    }
+    
+    public function minBlockWidth($title, $text) {
+	return 7 + $this->textWidth($title, $this->message_font_size) + 7 + 7 + $this->textWidth($text, $this->message_font_size) + 7;
+    }
+    
+    public function minBlockHeight($title, $text) {
+	$titleHeight = 5 + $this->textHeight($title, $this->message_font_size) + 5;
+	$textHeight = 5 + $this->textHeight($text, $this->message_font_size) + 5;
+	
+	return max($titleHeight, $textHeight);
+    }
         
     /** Returns width of a text
     */
@@ -235,7 +338,7 @@ class Draw {
 	}
     
     
-	return $max_x;//ImageFontWidth($font_size) * strlen($text);
+	return $max_x;
     }
     
     /** Returns height of a text

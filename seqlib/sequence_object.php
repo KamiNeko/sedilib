@@ -150,7 +150,7 @@ abstract class SequenceObject {
 	return $this->_width;
     }
     
-    public function setWidth($width) {
+    public function setWidth($width, $draw = NULL) {
 	$this->_width = $width;
     }
     
@@ -158,7 +158,7 @@ abstract class SequenceObject {
 	return $this->_height;
     }
     
-    public function setHeight($height) {
+    public function setHeight($height, $draw = NULL) {
 	$this->_height = $height;
     }
     

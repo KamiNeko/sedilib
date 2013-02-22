@@ -27,10 +27,13 @@ require_once('sequence_object.php');
 class SequenceNote extends SequenceObject {
     public function __construct($text) {
 	$this->_text = $text;
+	$this->_visible = true;
     }
     
     public function draw($draw) {
-	$draw->drawNote($this->_x, $this->_y, $this->_text);
+	if ($this->_visible) {
+	    $draw->drawNote($this->_x, $this->_y, $this->_text);
+	}
     }
 }
 

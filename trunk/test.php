@@ -30,35 +30,41 @@ if (!isset($_GET['debug'])) {
   header("Content-type: image/png"); 
 }
 
+
+$text = "start:A\r\nclass:'Ahoi' 'alias'\r\nclass: 'jaj'\r\nA->B:hallo";
+
 // This should create a sample sequence diagram and display it
 
-require_once('seqlib/sequence_builder.php');
+require_once('seqlib/sequence_parser.php');
 
-$var = new SequenceDiagramBuilder();
-$var->setTitle('Example Sequence Diagram\nThis is just an example...');
-$result = true;
-$var->addNote('bla\nDid you see this thing ?\n did gggggggggggggggyou ???');
-$result &= $var->addMessage('A', 'B', 'request', false, true, 1);
-$var->addNote('bla\nDid you see this thing ?');
+$parser = new SequenceParser($text);
+$parser->generateImage();
 
-$result &= $var->addBlock('ALT', '[ client recognized ]');
-$result &= $var->addMessage('B', 'A', 'access allowed', true, true);
-$var->addNote('bla\nDid you see this thing ?');
-$result &= $var->splitBlock('[client unknown]');
-$result &= $var->addMessage('B', 'A', 'access denied', true, true);
-$result &= $var->endBlock();
-
-
-$result &= $var->addBlock('REF', 'other_diagram', true);
-$result &= $var->endBlock();
-
-$result &= $var->addMessage('A', 'B', 'fu !!!', false, true,0,false,2);
-
-
-if (!$result) {
-    echo 'ERROR <br><br>';
-}
-
-$var->draw();
+// $var = new SequenceDiagramBuilder();
+// $var->setTitle('Example Sequence Diagram\nThis is just an example...');
+// $result = true;
+// $var->addNote('bla\nDid you see this thing ?\n did gggggggggggggggyou ???');
+// $result &= $var->addMessage('A', 'B', 'request', false, true, 1);
+// $var->addNote('bla\nDid you see this thing ?');
+// 
+// $result &= $var->addBlock('ALT', '[ client recognized ]');
+// $result &= $var->addMessage('B', 'A', 'access allowed', true, true);
+// $var->addNote('bla\nDid you see this thing ?');
+// $result &= $var->splitBlock('[client unknown]');
+// $result &= $var->addMessage('B', 'A', 'access denied', true, true);
+// $result &= $var->endBlock();
+// 
+// 
+// $result &= $var->addBlock('REF', 'other_diagram', true);
+// $result &= $var->endBlock();
+// 
+// $result &= $var->addMessage('A', 'B', 'fu !!!', false, true,0,false,2);
+// 
+// 
+// if (!$result) {
+//     echo 'ERROR <br><br>';
+// }
+// 
+// $var->draw();
 
 ?>

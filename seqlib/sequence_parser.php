@@ -149,7 +149,11 @@ class SequenceParser {
 	// Extract class name
 	$class_name = $line;
 	$class_name = substr(strstr($class_name, ":"), 1);  // Get text right of 'class:'
-	$class_name = strstr($class_name, ",", true);  // Remove alias if given
+	
+	if ($this->contains_substr($class_name, ',')) { 
+	    $class_name = strstr($class_name, ",", true);  // Remove alias if given 
+	}
+	
 	$class_name = trim($class_name); // Remove whitespace
 	
 	// Extract alias name if possible

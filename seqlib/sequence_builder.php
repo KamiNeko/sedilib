@@ -84,9 +84,10 @@ class SequenceDiagramBuilder {
 	$this->_sequenceDiagram->setTitle($title);
     }
     
-    public function addNote($text) {
+    public function addNote($text, $invisible = false) {
 	// Add note
 	$note = new SequenceNote($text);
+	$note->setVisible(!$invisible);
 	
 	$this->_sequenceDiagram->addObject($note);
     }
@@ -107,7 +108,6 @@ class SequenceDiagramBuilder {
 	$action->setText($text);
 	
 	$this->_sequenceDiagram->addObject($action);
-	
 	return true;
     }
     
@@ -143,7 +143,7 @@ class SequenceDiagramBuilder {
     * @param invisible if true, message will be invisible (used for creating explicit activity and destroying explicit activity)
     * @param class_mode 0 = no mode, 1 = create the destination class explicit, 2 = destroy the destination class explicit
     */
-    public function addMessage($origin, $destination, $message_text, $dashed = false, $fill_arrow_head = false, $activity_mode = 0, $invisible = false, $class_mode = 0) {
+    public function addMessage($origin, $destination, $message_text, $dashed = false, $fill_arrow_head = true, $activity_mode = 0, $invisible = false, $class_mode = 0) {
 	// Add classes origin and destination if new
 	$origin_create = $this->addClass($origin);
 	$destination_create = $this->addClass($destination);
@@ -381,6 +381,8 @@ class SequenceDiagramBuilder {
 	$note->setY($y);
 	
 	$y += $height + 10;
+	
+	$this->_height += $height + 10;
     }
     
     private function computeNoteX() {
@@ -403,7 +405,9 @@ class SequenceDiagramBuilder {
 	    }
 	}
 	
-	$this->_width = $max + 10;
+	if ($max + 10 > $this->_width) {
+	    $this->_width = $max + 10;
+	}
     }
     
     private function computeMessagesY(&$x, &$y) {
@@ -656,10 +660,13 @@ class SequenceDiagramBuilder {
 	    
 	    $activities = $class->activities();
 	    
+	    $last_y = -1;
+	    	    
 	    // Iterate over activities for this class
-	    for ($i = 0; $i < count($activities); $i++) {
+	    //for ($i = 0; $i < count($activities); $i++) {
+	    for ($i = count($activities) - 1; $i >= 0; $i--) {
 		$activity = $activities[$i];
-		
+				
 		$start_found = false;
 		$end_found = false;
 		
@@ -708,7 +715,7 @@ class SequenceDiagramBuilder {
 			}
 			// Increment activity height in case we have no explicit end found
 			//$activity->setY2($activity->y2() + 40);
-			$activity->setY2($message->y() + 10);
+			$activity->setY2($message->y() + 20);
 		    }
 		    
 		    // Going in
@@ -732,7 +739,11 @@ class SequenceDiagramBuilder {
 			
 			// Increment activity height in case we have no explicit end found
 			//$activity->setY2($activity->y2() + 40);
-			$activity->setY2($message->y() + 10);
+			$activity->setY2($message->y() + 20);
+			
+			if ($self_message) {
+			    $activity->setY2($message->y() + 40);
+			}
 		    }
 		    
 		    // Search end message
@@ -750,18 +761,28 @@ class SequenceDiagramBuilder {
 		
 		// If no explicit end found, end activity manual
 		if (!$end_found) {
-		   // $activity->setY2($activity->y2() - 20);
+		  //$activity->setY2($activity->y2() + 40);
 		}
 		
 		// Check if activity does not overlap with end of lifeline
 		if ($class->lifelineY() != 0 && $activity->y2() > $class->lifelineY()) {
 		    $class->setLifelineY($activity->y2() + 30);
 		}
+		
+		if ($activity->y2() == $last_y) {
+		    $activity->setY2($activity->y2() + 10);
+		}
+		
+		$last_y = $activity->y2();
 	    }
 	}
     }
         
     private function computeImageWidth() {
+	if (count($this->_sequenceDiagram->objects()) == 0) {
+	    return;
+	}
+	
 	// Find most right class
 	$index = -1;
 	for ($i = count($this->_sequenceDiagram->objects()) - 1; $i >= 0; $i--) {
@@ -877,7 +898,7 @@ class SequenceDiagramBuilder {
 	$this->_width = $new_width;
     }
     
-    public function draw() {
+    public function draw($filename = '') {
 	// Compute all positions
 	$this->computePositions();
 	
@@ -901,7 +922,7 @@ class SequenceDiagramBuilder {
 	    $this->_draw->drawDiagramTitle($this->_sequenceDiagram->title());
 	}
 	
-	$this->_draw->display();
+	$this->_draw->display($filename );
     }
 }
 

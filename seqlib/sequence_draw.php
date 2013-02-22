@@ -115,9 +115,14 @@ class Draw {
     
     /** Displays the image
     */
-    public function display() {
+    public function display($filename) {
 	// Send the new PNG image to the browser
-	ImagePNG($this->im); 
+	if ($filename == '') {
+	    ImagePNG($this->im); 
+	}
+	else {
+	    ImagePNG($this->im, $filename); 
+	}
 
 	// Destroy the reference pointer to the image in memory to free up resources
 	ImageDestroy($this->im); 
@@ -158,6 +163,7 @@ class Draw {
 	// Draw cross indicating destruction
 	else {
 	    $cross_offset = 10;
+	    $y2 += 20;
 	    
 	    $this->drawLine($x, $y1, $x, $y2, true);
 	    

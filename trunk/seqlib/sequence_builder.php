@@ -139,7 +139,7 @@ class SequenceDiagramBuilder {
     * @param message_text The message text
     * @param dashed Optional argument to indicate a dashed line. Default is not dashed
     * @param fill_arrow_head Optional argument to indicate filled arrow head. Default is not filled
-    * @param activity 0 = no activity, 1 = activity starts with incomming message, 2 = activity ends with outgoing message
+    * @param activity 0 = no activity, 1 = activity starts with incomming message, 2 = activity ends with outgoing message, 3 = both
     * @param invisible if true, message will be invisible (used for creating explicit activity and destroying explicit activity)
     * @param class_mode 0 = no mode, 1 = create the destination class explicit, 2 = destroy the destination class explicit
     */
@@ -174,7 +174,7 @@ class SequenceDiagramBuilder {
 	$this->_sequenceDiagram->addObject($message);
 	
 	// Start activity at destination
-	if ($activity_mode == 1) {
+	if ($activity_mode == 1 || $activity_mode == 3) {
 	    $activity = new SequenceActivity($destination_class, $message);
 	    $destination_class->addActivity($activity);
 	    
@@ -182,7 +182,7 @@ class SequenceDiagramBuilder {
 	}
 	
 	// End activity at origin
-	if ($activity_mode == 2) {	    
+	if ($activity_mode == 2 || $activity_mode == 3) {	    
 	    $class_activities = $origin_class->activities();
 	    $count = count($class_activities);
 	    $last_activity = NULL; 
@@ -533,10 +533,15 @@ class SequenceDiagramBuilder {
 		    }
 		    
 		$first_message_in_class = NULL;
-		if (count($class->incommingMessages()) > 0) { $first_message_in_class = $class->incommingMessages()[0]; }
+		if (count($class->incommingMessages()) > 0) { 
+		    $msgs = $class->incommingMessages();
+		    $first_message_in_class = $msgs[0]; 
+		 }
 		
 		$last_message_in_class = NULL;
-		if (count($class->incommingMessages()) > 0) { $last_message_in_class = $class->incommingMessages()[count($class->incommingMessages()) - 1]; }
+		if (count($class->incommingMessages()) > 0) { 
+		    $msgs = $class->incommingMessages();
+		    $last_message_in_class = $msgs[count($msgs) - 1]; }
 		
 		// If manual class create and this is creating message
 		if ($class->manualCreate() && $message == $first_message_in_class) {
@@ -787,7 +792,8 @@ class SequenceDiagramBuilder {
 	$index = -1;
 	for ($i = count($this->_sequenceDiagram->objects()) - 1; $i >= 0; $i--) {
 	    // Only search for classes	    
-	    if (!$this->isClass($this->_sequenceDiagram->objects()[$i])) {
+	    $objs = $this->_sequenceDiagram->objects();
+	    if (!$this->isClass($objs[$i])) {
 		continue;
 	    }
 	    
@@ -796,7 +802,8 @@ class SequenceDiagramBuilder {
 	}
 	
 	// Most right class
-	$max_class = $this->_sequenceDiagram->objects()[$index];
+	$objs = $this->_sequenceDiagram->objects();
+	$max_class = $objs[$index];
 	
 	$this->_width = $max_class->x() + $max_class->width() / 2 + 25;
 	

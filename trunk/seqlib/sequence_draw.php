@@ -332,6 +332,7 @@ class Draw {
     /** Returns width of a text
     */
     private function textWidth($text, $font_size) {
+	$text = str_replace('\n', "\n", $text);
 	$lines = explode("\n", $text);
 	$max_x = -1;
 	
@@ -350,6 +351,7 @@ class Draw {
     /** Returns height of a text
     */
     private function textHeight($text, $font_size) {
+	$text = str_replace('\n', "\n", $text);
 	$lines = substr_count($text, "\n") + 1; 
 	return ImageFontHeight($font_size) * $lines;
     }
@@ -376,6 +378,7 @@ class Draw {
     }
     
     private function drawTextMultiline($x, $y, $text, $font_size, $font_color, $centered = true, $underlined = false) {
+	$text = str_replace('\n', "\n", $text);
 	$lines = explode("\n", $text);
 	$y_inc = $this->textHeight($text, $font_size) / count($lines);
 	

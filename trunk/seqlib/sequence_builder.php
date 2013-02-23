@@ -491,7 +491,9 @@ class SequenceDiagramBuilder {
 			continue;
 		    }
 		    
-		    if ($origin_found) {
+		    $uncreated_class = $class->manualCreate() && count($class->incommingMessages()) == 0;
+		    
+		    if ($origin_found && !$uncreated_class) {
 			$right_neighbour = $class;
 			break;
 		    }
@@ -648,12 +650,15 @@ class SequenceDiagramBuilder {
 			    $found  = true;
 		    }
 		    
+		    $uncreated_class = $class->manualCreate() && count($class->incommingMessages()) == 0;
 		    
-		    // If selfmessage, skip one class to get right neighbour instead
+		    // If selfmessage, skip one class to get right neighbour (existing) instead
 		    if ($found && $message->visible() && $self_message && !$skip) { 		    
 			$skip = true; 
 			continue; 
 		    }
+		    
+		    if ($skip && $uncreated_class) continue;
 		       
 		    if ($found && $id != 0 && $message->visible()) {
 			$current_x = $class->x();

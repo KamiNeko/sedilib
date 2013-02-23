@@ -6,7 +6,7 @@ require_once('seqlib/sequence_parser.php');
 
 $text = $_POST['seqdia_code'];
 
-$text = urldecode($text);
+//$text = urldecode($text);
 $text = str_replace("\\\\n", "\x", $text);
 $text = str_replace("\n", "\r\n", $text);
 $text = str_replace("\x", "\n", $text);

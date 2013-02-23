@@ -31,6 +31,7 @@ error_reporting(E_ALL);
       
       $text = $_POST['seqdia_code'];
       $text = str_replace("\'", "'", $text);
+      $text = str_replace("\\\\", "\\", $text);
   }  
   
 ?>
@@ -67,6 +68,7 @@ error_reporting(E_ALL);
 	      xmlHttp.open('POST', 'generate.php', true);
 	      var sendValue = "seqdia_code=" + document.getElementById("seqdia_code").value;
 	      sendValue = sendValue.replace(/\+/g, "!create!");
+	      
 	      //Send the proper header information along with the request
 	      xmlHttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
 	      xmlHttp.setRequestHeader("Content-length", sendValue.length);

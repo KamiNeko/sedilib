@@ -1,4 +1,8 @@
 <?php
+
+header("Pragma:no-cache");
+header("Cache-Control:private,no-store,no-cache,must-revalidate");
+
 session_start();
 
 error_reporting(E_ALL);
@@ -62,10 +66,7 @@ error_reporting(E_ALL);
 	  if (xmlHttp) {
 	      xmlHttp.open('POST', 'generate.php', true);
 	      var sendValue = "seqdia_code=" + document.getElementById("seqdia_code").value;
-	      
-	      //sendValue = sendValue.replace("\n", "\r");
-	      
-	      
+	      sendValue = sendValue.replace(/\+/g, "!create!");
 	      //Send the proper header information along with the request
 	      xmlHttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
 	      xmlHttp.setRequestHeader("Content-length", sendValue.length);
@@ -74,8 +75,11 @@ error_reporting(E_ALL);
 	      //xmlhttp.setRequestHeader('Content-Type', 'application/json');
 	      
 	      xmlHttp.onreadystatechange = function () {
-		  if (xmlHttp.readyState == 4) {//alert(xmlHttp.responseText);
+		  if (xmlHttp.readyState == 4) {
+		      //alert(xmlHttp.responseText);
 		      var json = eval('(' + xmlHttp.responseText + ')');
+		      
+		      
 		      document.getElementById("img").src = json.img;
 		      if (json.errors != undefined)
 			  document.getElementById("error").innerHTML = json.errors;

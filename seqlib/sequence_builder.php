@@ -148,10 +148,10 @@ class SequenceDiagramBuilder {
 	$origin_create = $this->addClass($origin);
 	$destination_create = $this->addClass($destination);
 	
-	if ($class_mode == 1 && $destination_create == false) {
-	    // Trying to explicit create an existing class => error
-	    return false;
-	}
+	//if ($class_mode == 1 && $destination_create == false) {
+	   // Trying to explicit create an existing class => error
+	//   return false;
+	//}
 	
 	if ($class_mode == 2 && $destination_create == true) {
 	    // Trying to explicit destroy a non existing class => error
@@ -245,7 +245,7 @@ class SequenceDiagramBuilder {
 	    if (!$this->isClass($class)) {
 		continue;
 	    }
-	    
+		
 	    $x += $class->width() / 2;
 	    $class->setX($x);
 	    $class->setY($y);
@@ -465,9 +465,17 @@ class SequenceDiagramBuilder {
 		// 3. Compute new distance between classes
 		$x_origin = $this->_sequenceDiagram->findClassByNameOrAlias($message->origin())->x();
 		$x_destination = $this->_sequenceDiagram->findClassByNameOrAlias($message->destination())->x();
-		
 		$current_distance = abs($x_destination - $x_origin);
 		$direction = $x_destination > $x_origin;
+		
+		// Check if creating a class with this message
+		$destination = $this->_sequenceDiagram->findClassByNameOrAlias($message->destination());
+		if ($destination->manualCreate()) {
+		    $msg_in = $destination->incommingMessages();
+		    
+		    // Allow negative extend
+		    if (count($msg_in) == 0) $extend = true;
+		}
 		
 		$new_distance = $this->_draw->messageWidth($message->text());
 	    }
@@ -494,7 +502,7 @@ class SequenceDiagramBuilder {
 		}
 				
 		// Compute distance to neighbour
-		if ($right_neighbour != NULL) {
+		if ($right_neighbour != NULL) { // TODO XXX
 		    $x_origin = $origin->x();
 		    $x_destination = $right_neighbour->x();
 		    
@@ -514,11 +522,34 @@ class SequenceDiagramBuilder {
 	    $found = false;
 	    $skip = false;
 	    
+	    // Special calculation for shifting classes beeing created in flow
+	    $class_create_x_offset = 0;
+	    $class_min_x_pos = 0;
+	    $class_min_x_pos_2 = 0;
+	    $right_neighbour = false;
+	    
+	    $left_neigbour_ref = null;
+	    $difference2 = 0;
+	    $difference3 = 0;
+	    
+	    $last_class_was_manual = false;
+	    
 	    // Iterate through all classes right of destination and add difference
 	    foreach ($this->_sequenceDiagram->objects() as $id => $class) {
 		// Only search for classes
 		if (!$this->isClass($class)) {
 		    continue;
+		}
+		
+		 // If creating class, check if negative shift is allowed
+		$skip_one_class = false;
+		if ($left_neigbour_ref != null && $class->manualCreate() && count($class->incommingMessages()) == 0) {
+		    $neighbour_distance = ($class->x() - $class->width() / 2) - $left_neigbour_ref->x()- $this->_classMinDistance;
+		    
+		    if ($difference < $neighbour_distance) {
+			$skip_one_class = true;
+			$difference3 = $neighbour_distance;
+		    }
 		}
 	    
 		// While iterating through all classes here, we can use it to register message to class
@@ -533,25 +564,62 @@ class SequenceDiagramBuilder {
 		    }
 		    
 		$first_message_in_class = NULL;
+		
 		if (count($class->incommingMessages()) > 0) { 
 		    $msgs = $class->incommingMessages();
 		    $first_message_in_class = $msgs[0]; 
 		 }
 		
 		$last_message_in_class = NULL;
+		
 		if (count($class->incommingMessages()) > 0) { 
 		    $msgs = $class->incommingMessages();
-		    $last_message_in_class = $msgs[count($msgs) - 1]; }
+		    $last_message_in_class = $msgs[count($msgs) - 1]; 
+		}
+		    
+		if ($right_neighbour && !$class->manualCreate()) {
+		    $right_neighbour = false;
+		    // // Check if we need to adjust
+		    $x1 = $class_min_x_pos;
+		    $x2 = $class->x();
+		    
+		    if ($x1 > $x2) {
+			$class_create_x_offset = $x1 - $x2;
+		    }
+		}
+		
+		// If moved a class for right position in creation, also move all right neighbours
+		if (!($class->manualCreate() && $message == $first_message_in_class)) {
+		    $x1 = max(0, $class_min_x_pos_2 - $class->x());
+		    //$class->setX($class->x() + $class_create_x_offset + $x1);
+		    
+		    $difference2 += $class_create_x_offset + $x1;
+		}
 		
 		// If manual class create and this is creating message
 		if ($class->manualCreate() && $message == $first_message_in_class) {
 		    // Move class box horizontally
 		    $current_x = $class->x();
-		    $current_x += $class->width() / 2;
+		    
+		    if ($direction) {
+			$current_x += $class->width() / 2;
+		    }
+		    else {
+			$current_x -= $class->width() / 2;
+		    }
+		    
+		    $right_neighbour = true;
+		    $class_min_x_pos = $class->x() + $class->width() / 2 + $this->_classMinDistance;
+		    
 		    $class->setX($current_x);
 		    
 		    // Move class box vertically
 		    $class->setY($message->y());
+		    
+		    // If creator message comes from right
+		    if (!$direction) {
+			$class_min_x_pos_2 = $class->x() + $class->width() / 2 + $new_distance;
+		    }
 		}
 		
 		// If manual class destroy and this is destroying message
@@ -586,10 +654,18 @@ class SequenceDiagramBuilder {
 			$skip = true; 
 			continue; 
 		    }
-			    
+		       
 		    if ($found && $id != 0 && $message->visible()) {
 			$current_x = $class->x();
-			$current_x += $difference;
+			
+			if (!$skip_one_class) {
+			    $current_x += $difference;
+			}
+			else if (!$last_class_was_manual) {
+			    $current_x -= $difference3;
+			}
+			
+			$current_x += $difference2;
 			
 			// If activitties in class, add width/2
 			if (count($class->activities()) > 0) {
@@ -598,6 +674,15 @@ class SequenceDiagramBuilder {
 			
 			$class->setX($current_x);
 		    }
+		}
+		
+		$left_neigbour_ref = $class;
+		
+		if ($class->manualCreate()) {
+		    $last_class_was_manual = true;
+		}
+		else {
+		    $last_class_was_manual = false;
 		}
 	    }
 	    
@@ -637,7 +722,6 @@ class SequenceDiagramBuilder {
 	    }
 	    
 	    for ($i=0;$i<count($incommingMessages);$i++) {
-		
 		$incommingMessages[$i]->setX2($class->x());
 	    }
 	    
@@ -646,7 +730,8 @@ class SequenceDiagramBuilder {
 		$x1 = $incommingMessages[0]->x1();
 		$x2 = $incommingMessages[0]->x2();
 		
-		if ($x1 > $x2) {
+		// null means, right class was not parsed yet and we know direction
+		if ($x1 == null) {
 		    $incommingMessages[0]->setX2($class->x() + $class->width() / 2 + 1);
 		}
 		else {
@@ -864,11 +949,59 @@ class SequenceDiagramBuilder {
 	// Adjust height
 	$this->_height += 25;
 	
+	// Dirty Fix
+	$left_class = null;
+	$offset = 0;
+	
+	foreach($this->_sequenceDiagram->objects() as $object) {
+	    //$object->setX($object->x() + $offset);
+	    //$object->setX1($object->x1() + $offset);
+	    //$object->setX2($object->x2() + $offset);
+	     
+	    if (!$this->isClass($object)) {
+		continue;
+	    }
+	    
+	    if ($left_class != null) {
+		$distance = 0;
+		$x1 = 0;
+		$x2 = 0;
+		
+		if ($left_class->manualCreate() && !$object->manualCreate()) {
+		    $x1 = $left_class->x() + $left_class->width() / 2;
+		    $x2 = $object->x();
+		}
+		else if (!$left_class->manualCreate() && $object->manualCreate()) {
+		    $x1 = $left_class->x();
+		    $x2 = $object->x() - $object->width() / 2;
+		}
+		else {
+		    $x1 = $left_class->x() + $left_class->width() / 2;
+		    $x2 = $object->x() - $object->width() / 2;
+		}
+		
+		$distance = $x2 - $x1;
+		
+		if ($distance <  $this->_classMinDistance) {
+		    $offset_inc = $this->_classMinDistance - $distance; 
+		    $offset += $offset_inc;
+		    
+		    $object->setX($object->x() + $offset_inc);
+		    $object->setX1($object->x1() + $offset_inc);
+		    $object->setX2($object->x2() + $offset_inc);
+		}
+	    }
+	    
+	    $left_class = $object;
+	}
+	
 	// Compute x-coordinates for messages
 	$this->computeMessagesX($x, $y);
 	
 	// Compute activities
 	$this->computeActivites($x, $y);
+	
+	
 	
 	// Adjust image height approximately for destruction markers
 	$this->_height += 30;

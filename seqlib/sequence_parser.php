@@ -179,7 +179,7 @@ class SequenceParser {
     */
     private function parseMessage($id, $line) {
 	$direction = 'none';
-	    
+		
 	// Get direction of message
 	if ($this->contains_substr($line, '->')) $direction = 'right';
 	if ($this->contains_substr($line, '<-')) $direction = 'left';
@@ -198,37 +198,36 @@ class SequenceParser {
 	$right = trim(strstr($right, ':', true));
 	
 	// Filter tokens
-	$left = str_replace($tokens, '', $left);
-	$right = str_replace($tokens, '', $right);
+	$left = trim(str_replace($tokens, '', $left));
+	$right = trim(str_replace($tokens, '', $right));
 	
 	// Get origin and destination by direction
 	$origin = '';
 	$destination = '';
 	
 	if ($direction == 'right') {
-	    $origin = $left;
-	    $destination = $right;
+		$origin = $left;
+		$destination = $right;
 	}
 	else if ($direction == 'left') {
-	    $origin = $right;
-	    $destination = $left;
+		$origin = $right;
+		$destination = $left;
 	}
 	else {
-	    // Raise error message
-	    $this->errors[] = 'Syntax Error in line '.($id + 1).', could not determine direction of message.';
-	    return;
+		// Raise error message
+		$this->errors[] = 'Syntax Error in line '.($id + 1).', could not determine direction of message.';
+		return;
 	}
 	
 	// Get message tokens by filter operations
 	$message_tokens = $line;
-	$message_tokens = strstr($line, ':', true); // Get text content right of colon
-	$message_tokens = str_replace($left, '', $message_tokens); // Replace left name with blank
-	$message_tokens = str_replace($right, '', $message_tokens); // Replace right name with blank
+	$message_tokens = strstr($line, ':', true); // Get text content left of colon
+	$message_tokens = ereg_replace("[A-Za-z0-9]", "", $message_tokens ); // Replace alphanumeric
 	$message_tokens = trim($message_tokens); // trim whitespace out
 	
 	// Informations to collect
 	$dashed = false;
-	$arrowHeadFilled = false;
+	$arrowHeadFilled = true;
 	$startActivity = false;
 	$stopActivity = false;
 	$createClass = false;
@@ -238,66 +237,66 @@ class SequenceParser {
 	if ($this->contains_substr($message_tokens, '--')) { $dashed = true; }
 	
 	// Filled Arrow Head ?
-	if ($this->contains_substr($message_tokens, '>>')) { $arrowHeadFilled = true; }
-	if ($this->contains_substr($message_tokens, '<<')) { $arrowHeadFilled = true; }
+	if ($this->contains_substr($message_tokens, '>>')) { $arrowHeadFilled = false; }
+	if ($this->contains_substr($message_tokens, '<<')) { $arrowHeadFilled = false; }
 	
 	// Split in left and right part of message tokens
 	$split_message = array();
 	
 	if ($direction == 'right') {
-	    $split_message = explode('->', $message_tokens);
+		$split_message = explode('->', $message_tokens);
 	}
 	else {
-	    $split_message = explode('<-', $message_tokens);
+		$split_message = explode('<-', $message_tokens);
 	}
 	
 	// Check subsequent left and right part
 	for ($i = 0; $i < 2; $i++) {
-	    // Remove residues
-	    $current_token_part = str_replace(array('-', '<', '>'), '', $split_message[$i]);
-	    
-	    // Activity start / stop
-	    if ($this->contains_substr($current_token_part, '*')) {
+		// Remove residues
+		$current_token_part = str_replace(array('-', '<', '>'), '', $split_message[$i]);
+		
+		// Activity start / stop
+		if ($this->contains_substr($current_token_part, '*')) {
 		// If part and direction fit, activity start
-		if ($i == 0 && $direction == 'left' || 
-		    $i == 1 && $direction == 'right') {
-		    $startActivity = true;
+		    if ($i == 0 && $direction == 'left' || 
+			    $i == 1 && $direction == 'right') {
+			    $startActivity = true;
+		    }
+		    // Else activity stop
+		    else {
+			    $stopActivity = true;
+		    }
 		}
-		// Else activity stop
-		else {
-		    $stopActivity = true;
-		}
-	    }
-	    
-	    // Create class
-	    if ($this->contains_substr($current_token_part, '+')) {
+		  
+		// Create class
+		if ($this->contains_substr($current_token_part, '+')) { 
 		// If part and direction fit, create class
-		if ($i == 0 && $direction == 'left' || 
-		    $i == 1 && $direction == 'right') {
-		    $createClass = true;
+		    if ($i == 0 && $direction == 'left' || 
+			    $i == 1 && $direction == 'right') {
+			    $createClass = true;
+		    }
+		    // Else nonsense and error
+		    else {
+			    // Raise error message
+			    $this->errors[] = 'Syntax Error in line '.($id + 1).', tried creating a class with outgoing message.';
+			    return;
+		    }
 		}
-		// Else nonsense and error
-		else {
-		    // Raise error message
-		    $this->errors[] = 'Syntax Error in line '.($id + 1).', tried creating a class with outgoing message.';
-		    return;;
+		
+		// Destroy class
+		if ($this->contains_substr($current_token_part, '!')) {
+		    // If part and direction fit, destroy class
+		    if ($i == 0 && $direction == 'left' || 
+			    $i == 1 && $direction == 'right') {
+			    $destroyClass = true;
+		    }
+		    // Else nonsense and error
+		    else {
+			    // Raise error message
+			    $this->errors[] = 'Syntax Error in line '.($id + 1).', tried destroying a class with outgoing message.';
+			    return;;
+		    }
 		}
-	    }
-	    
-	    // Destroy class
-	    if ($this->contains_substr($current_token_part, '!')) {
-		// If part and direction fit, destroy class
-		if ($i == 0 && $direction == 'left' || 
-		    $i == 1 && $direction == 'right') {
-		    $destroyClass = true;
-		}
-		// Else nonsense and error
-		else {
-		    // Raise error message
-		    $this->errors[] = 'Syntax Error in line '.($id + 1).', tried destroying a class with outgoing message.';
-		    return;;
-		}
-	    }
 	}
 	
 	// Prepare message
@@ -315,7 +314,7 @@ class SequenceParser {
 	if ($createClass && $destroyClass) { 
 	    // Raise error message
 	    $this->errors[] = 'Syntax Error in line '.($id + 1).', tried creating and destroying class at same time.';
-	    return;;
+	    return;
 	}
 	
 	// Add message

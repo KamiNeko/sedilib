@@ -1,0 +1,1 @@
+A little library written in PHP and PHP GD to create fast sequence diagrams as 
